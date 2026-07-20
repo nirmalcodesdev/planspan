@@ -1,0 +1,72 @@
+{
+  "Query Text": "SELECT orders.status, count(*) AS n, sum(orders.total) AS revenue \nFROM orders GROUP BY orders.status /*traceparent='00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'*/",
+  "Duration": 1408.65,
+  "Query Identifier": 5736429471893401520,
+  "Plan": {
+    "Node Type": "Aggregate",
+    "Strategy": "Hashed",
+    "Partial Mode": "Finalize",
+    "Parallel Aware": false,
+    "Startup Cost": 14203.11,
+    "Total Cost": 14203.15,
+    "Plan Rows": 2,
+    "Plan Width": 46,
+    "Actual Startup Time": 1408.02,
+    "Actual Total Time": 1408.11,
+    "Actual Rows": 2,
+    "Actual Loops": 1,
+    "Shared Hit Blocks": 1290,
+    "Shared Read Blocks": 3466,
+    "Plans": [
+      {
+        "Node Type": "Gather",
+        "Parent Relationship": "Outer",
+        "Parallel Aware": false,
+        "Plan Rows": 4,
+        "Plan Width": 46,
+        "Actual Startup Time": 1407.53,
+        "Actual Total Time": 1408.00,
+        "Actual Rows": 6,
+        "Actual Loops": 1,
+        "Workers Planned": 2,
+        "Workers Launched": 2,
+        "Shared Hit Blocks": 1290,
+        "Shared Read Blocks": 3466,
+        "Plans": [
+          {
+            "Node Type": "Aggregate",
+            "Strategy": "Hashed",
+            "Partial Mode": "Partial",
+            "Parent Relationship": "Outer",
+            "Parallel Aware": false,
+            "Plan Rows": 2,
+            "Plan Width": 46,
+            "Actual Startup Time": 1402.87,
+            "Actual Total Time": 1402.90,
+            "Actual Rows": 2,
+            "Actual Loops": 3,
+            "Shared Hit Blocks": 1290,
+            "Shared Read Blocks": 3466,
+            "Plans": [
+              {
+                "Node Type": "Seq Scan",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": true,
+                "Relation Name": "orders",
+                "Alias": "orders",
+                "Plan Rows": 208333,
+                "Plan Width": 14,
+                "Actual Startup Time": 0.24,
+                "Actual Total Time": 685.51,
+                "Actual Rows": 166667,
+                "Actual Loops": 3,
+                "Shared Hit Blocks": 1290,
+                "Shared Read Blocks": 3466
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
