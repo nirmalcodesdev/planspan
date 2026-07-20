@@ -1,1 +1,4 @@
-# auto_explain JSON -> span-tree IR. Implemented in PR3.
+from .ir import ParsedPlan, PlanNode
+from .parse import parse
+
+__all__ = ["ParsedPlan", "PlanNode", "parse"]
