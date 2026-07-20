@@ -35,6 +35,19 @@ cd deploy && docker compose up --build -d
 `setup.sh` installs hypopg, drops the auto_explain config into
 `/etc/postgresql/17/main/conf.d/`, restarts Postgres, and creates the app db/role.
 
+Seed the shop (10M orders, server-side, idempotent):
+
+```bash
+docker compose exec demoapp python seed.py       # or ORDERS=2000000 for a smaller set
+```
+
+Endpoints:
+
+- `GET /orders?email=user123@example.com` — indexed lookup; drop `ix_orders_email`
+  live to watch it fall to a seq scan
+- `GET /search` — unindexed aggregate over all orders
+- `POST /checkout?user_id=1&product_id=1` — writes an order
+
 ## Layout
 
 ```
