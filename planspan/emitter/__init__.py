@@ -1,1 +1,3 @@
-# IR -> OTel spans. Implemented in PR4.
+from .emit import PlanEmitter
+
+__all__ = ["PlanEmitter"]
