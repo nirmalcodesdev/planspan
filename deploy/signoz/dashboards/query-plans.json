@@ -1,0 +1,269 @@
+{
+  "description": "Postgres execution plans as trace spans. Built by PlanSpan from auto_explain output.",
+  "layout": [
+    {
+      "h": 6,
+      "i": "1",
+      "w": 6,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "h": 6,
+      "i": "2",
+      "w": 6,
+      "x": 6,
+      "y": 0
+    },
+    {
+      "h": 6,
+      "i": "3",
+      "w": 12,
+      "x": 0,
+      "y": 6
+    },
+    {
+      "h": 6,
+      "i": "4",
+      "w": 6,
+      "x": 0,
+      "y": 12
+    },
+    {
+      "h": 6,
+      "i": "5",
+      "w": 6,
+      "x": 6,
+      "y": 12
+    }
+  ],
+  "tags": [
+    "planspan",
+    "postgres"
+  ],
+  "title": "PlanSpan - Query Plans",
+  "version": "v5",
+  "widgets": [
+    {
+      "description": "Individual plan nodes ranked by inclusive time (total_ms). Widest = most expensive.",
+      "id": "1",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filter": {
+                "expression": "db.postgresql.plan.node_type EXISTS"
+              },
+              "groupBy": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": 20,
+              "orderBy": [
+                {
+                  "columnName": "db.postgresql.plan.total_ms",
+                  "order": "desc"
+                }
+              ],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "queryType": "builder"
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [
+        {
+          "dataType": "string",
+          "key": "db.postgresql.plan.node_type",
+          "type": "tag"
+        },
+        {
+          "dataType": "string",
+          "key": "db.postgresql.plan.relation",
+          "type": "tag"
+        },
+        {
+          "dataType": "float64",
+          "key": "db.postgresql.plan.total_ms",
+          "type": "tag"
+        },
+        {
+          "dataType": "float64",
+          "key": "db.postgresql.plan.rows_actual",
+          "type": "tag"
+        },
+        {
+          "dataType": "float64",
+          "key": "db.postgresql.plan.buffers_read",
+          "type": "tag"
+        }
+      ],
+      "title": "Slowest plan nodes"
+    },
+    {
+      "description": "Count of sequential scans per table. A rising count on a large table is your missing-index smell.",
+      "id": "2",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "count()"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filter": {
+                "expression": "db.postgresql.plan.node_type = 'Seq Scan' db.postgresql.plan.relation EXISTS"
+              },
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "isColumn": false,
+                  "key": "db.postgresql.plan.relation",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{db.postgresql.plan.relation}}",
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "queryType": "builder"
+      },
+      "title": "Seq Scans by relation"
+    },
+    {
+      "description": "Total time spent in each plan node type over the window.",
+      "id": "3",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "sum(db.postgresql.plan.self_ms)"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filter": {
+                "expression": "db.postgresql.plan.node_type EXISTS db.postgresql.plan.node_type EXISTS"
+              },
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "isColumn": false,
+                  "key": "db.postgresql.plan.node_type",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{db.postgresql.plan.node_type}}",
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "queryType": "builder"
+      },
+      "title": "Plan node time by type",
+      "yAxisUnit": "ms"
+    },
+    {
+      "description": "Max estimate-vs-actual row skew per relation. High skew = stale statistics.",
+      "id": "4",
+      "panelTypes": "value",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "max(db.postgresql.plan.skew_ratio)"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "groupBy": [],
+              "having": {
+                "expression": ""
+              },
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "queryType": "builder"
+      },
+      "title": "Rows read vs returned (skew)"
+    },
+    {
+      "description": "Sum of shared buffers read from disk across plan nodes — the IO story.",
+      "id": "5",
+      "panelTypes": "graph",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregations": [
+                {
+                  "expression": "sum(db.postgresql.plan.buffers_read)"
+                }
+              ],
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filter": {
+                "expression": "db.postgresql.plan.relation EXISTS db.postgresql.plan.relation EXISTS"
+              },
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "isColumn": false,
+                  "key": "db.postgresql.plan.relation",
+                  "type": "tag"
+                }
+              ],
+              "having": {
+                "expression": ""
+              },
+              "legend": "{{db.postgresql.plan.relation}}",
+              "orderBy": [],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "queryType": "builder"
+      },
+      "title": "Buffers read (disk pressure)"
+    }
+  ]
+}
