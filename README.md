@@ -7,7 +7,7 @@ continues the trace *inside* Postgres — each plan node (Seq Scan, Hash Join, S
 becomes a real OpenTelemetry span, parented under the HTTP request that ran it, and
 rendered in SigNoz.
 
-Built for the Agents of SigNoz hackathon (Track 3). **WIP.**
+Built for the Agents of SigNoz hackathon (Track 3).
 
 ## How it fits together
 
@@ -48,6 +48,53 @@ Endpoints:
 - `GET /search` — unindexed aggregate over all orders
 - `POST /checkout?user_id=1&product_id=1` — writes an order
 
+## See the plans
+
+Hit a slow endpoint, then open SigNoz Traces (`http://<vps-ip>:8080`):
+
+```bash
+curl "http://localhost:8000/search"
+```
+
+Find the `shop-api` `/search` request and expand the waterfall. Under the HTTP span
+you'll see the plan subtree — `Aggregate` → `Gather Merge` → `Sort` → `Seq Scan orders`
+— each a real span carrying rows, buffers, loops, and estimate-vs-actual skew.
+
+The sidecar logs one line per captured plan:
+
+```
+emitted 5 spans  dur=882.0ms  tp=00-3272814e9e37...-d7b88a3d78f2...-01
+```
+
+`tp=00-...` is the trace it stitched under; `no-parent` means the query had no
+traceparent (e.g. a background query, not an app request).
+
+### Trace Explorer as a plan search engine
+
+Because every plan node is a span with `db.postgresql.plan.*` attributes, Trace
+Explorer answers questions no Postgres tool can — e.g. filter
+`db.postgresql.plan.node_type = Seq Scan` and `db.postgresql.plan.relation = orders`
+to list every sequential scan on `orders` in the window, slowest first.
+
+### Dashboard
+
+Import `deploy/signoz/dashboards/query-plans.json` (Dashboards → Import JSON):
+slowest plan nodes, seq scans by relation, node time by type, row skew, buffers read.
+
+## Span attributes
+
+Spans follow the OTel `db.*` semconv and extend it with a proposed
+`db.postgresql.plan.*` namespace:
+
+| attribute | meaning |
+|---|---|
+| `node_type` | Seq Scan, Index Scan, Hash Join, ... |
+| `relation` / `index_name` | table / index touched |
+| `total_ms` / `self_ms` | inclusive / exclusive time (× loops) |
+| `rows_estimated` / `rows_actual` / `skew_ratio` | planner estimate vs reality |
+| `buffers_hit` / `buffers_read` | 8KB pages from cache / disk |
+| `loops` / `parallel_aware` | parallel execution detail |
+
 ## Layout
 
 ```
@@ -55,9 +102,16 @@ demoapp/          FastAPI shop (traffic source)
 planspan/         the sidecar
   parser/         auto_explain JSON -> span-tree IR
   emitter/        IR -> OTel spans
+  logreader.py    tail + multiline plan assembly
   lockpoller/     lock forensics
   whatif/         hypopg what-if plans
   fingerprint/    plan-shape hashing
   billing/        IO + $ math
-deploy/           docker-compose + postgres setup
+deploy/
+  docker-compose.yml     demoapp + sidecar (host network)
+  postgres/              auto_explain config + setup.sh
+  signoz/dashboards/     importable dashboard JSON
+tests/            parser / emitter / logreader (+ real VPS plan fixture)
 ```
+
+Run the tests with `pytest` from the repo root (`pip install -r tests/requirements.txt`).
