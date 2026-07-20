@@ -1,0 +1,19 @@
+# PlanSpan's own services only.
+# SigNoz runs separately (Foundry). Postgres is native systemd on the host.
+# Host networking so we reach SigNoz OTLP (localhost:4317) and PG (localhost:5432),
+# matching the wiring that already works on the VPS.
+
+services:
+  demoapp:
+    build: ../demoapp
+    env_file: ../.env
+    network_mode: host
+    restart: unless-stopped
+
+  sidecar:
+    build: ../planspan
+    env_file: ../.env
+    network_mode: host
+    volumes:
+      - ${PG_LOG_DIR:-/var/log/postgresql}:/var/log/postgresql:ro
+    restart: unless-stopped
