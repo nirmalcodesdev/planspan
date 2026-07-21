@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from db import SessionLocal
 from models import Order, Product, User
@@ -59,3 +59,33 @@ def checkout(user_id: int, product_id: int):
         s.add(order)
         s.commit()
         return {"order_id": order.id, "total": float(order.total)}
+
+
+@app.post("/hold-lock")
+def hold_lock(order_id: int, seconds: float = 6.0):
+    # demo helper for lock forensics: lock a row, then hold the transaction open
+    # and idle for `seconds`. The connection stays idle-in-transaction so its last
+    # statement (the locking UPDATE, with our traceparent) is what pg_stat_activity
+    # shows to the poller — that's what lets the victim link back to this request.
+    import time
+
+    with SessionLocal() as s:
+        s.execute(
+            text("UPDATE orders SET status = 'held' WHERE id = :id"),
+            {"id": order_id},
+        )
+        time.sleep(seconds)  # hold the lock, connection idle-in-transaction
+        s.rollback()
+    return {"held": order_id, "seconds": seconds}
+
+
+@app.post("/contend-lock")
+def contend_lock(order_id: int):
+    # the victim: try to update the same row. blocks until /hold-lock releases.
+    with SessionLocal() as s:
+        s.execute(
+            text("UPDATE orders SET status = 'wants' WHERE id = :id"),
+            {"id": order_id},
+        )
+        s.commit()
+    return {"acquired": order_id}
