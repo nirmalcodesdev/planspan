@@ -1,3 +1,3 @@
-from .emit import PlanEmitter
+from .emit import PlanEmitter, parent_context_from_traceparent
 
-__all__ = ["PlanEmitter"]
+__all__ = ["PlanEmitter", "parent_context_from_traceparent"]
