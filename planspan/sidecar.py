@@ -17,6 +17,7 @@ from logreader import iter_entries
 from parser import parse
 
 import lockpoller.runner as lock_runner
+from whatif import WhatIfRunner
 
 
 def _setup_tracer():
@@ -64,14 +65,29 @@ def main():
         t = threading.Thread(target=lock_runner.run, args=(tracer,), daemon=True)
         t.start()
 
+    whatif = WhatIfRunner(tracer) if os.environ.get("WHATIF", "on") != "off" else None
+
     print(f"planspan sidecar up. tailing {log_path}", flush=True)
 
     for item in iter_entries(follow(log_path)):
         plan = parse(item.entry, log_time=item.log_time)
         plan.duration_ms = item.duration_ms or plan.duration_ms
-        n = emitter.emit(plan, now_ns=time.time_ns())
+        now_ns = time.time_ns()
+        n = emitter.emit(plan, now_ns=now_ns)
         tp = plan.traceparent or "no-parent"
         print(f"emitted {n} spans  dur={plan.duration_ms:.1f}ms  tp={tp}", flush=True)
+
+        if whatif is not None:
+            start_ns = _plan_start_ns(plan, now_ns)
+            whatif.maybe_emit(plan, start_ns)
+
+
+def _plan_start_ns(plan, now_ns):
+    if plan.log_time is not None:
+        end_ns = int(plan.log_time * 1_000_000_000)
+    else:
+        end_ns = now_ns
+    return end_ns - int(plan.duration_ms * 1_000_000)
 
 
 if __name__ == "__main__":
