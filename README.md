@@ -108,6 +108,16 @@ DDL. Disable the runner with `WHATIF=off`.
 returned — the "1.9 GB to return 12 rows" story) and `dollars_per_month` (CPU time ×
 observed call rate × a tunable vCPU price). Estimates, labeled as such.
 
+## Plan fingerprinting
+
+Every plan is hashed by its shape (node types + relations/indexes, ignoring timings).
+When the same query's fingerprint changes — an Index Scan falling back to a Seq Scan —
+the sidecar emits a `Plan flip` span with a human diff
+(`Index Scan[ix_orders_email] -> Seq Scan[orders]`) and `last_good_trace_id` for the
+before. Import the alerts in `deploy/signoz/alerts/` (plan flip, high-IO seq scan) to
+get paged before users notice. The flip demo needs `auto_explain.log_min_duration = 0`
+so the fast (indexed) baseline plan is also logged.
+
 ## Lock forensics
 
 A background poller watches `pg_stat_activity` for sessions blocked on locks and
