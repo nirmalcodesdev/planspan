@@ -3,11 +3,9 @@
 Input is the dict auto_explain logs (the object holding "Query Text" and "Plan").
 Pure function; the sidecar owns log tailing and line assembly.
 """
-import re
+from traceparent import extract_traceparent
 
 from .ir import ParsedPlan, PlanNode
-
-_TRACEPARENT_RE = re.compile(r"/\*traceparent='([0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2})'\*/")
 
 
 def _node(raw: dict) -> PlanNode:
@@ -42,7 +40,6 @@ def _node(raw: dict) -> PlanNode:
 
 def parse(entry: dict, log_time: float | None = None) -> ParsedPlan:
     query = entry.get("Query Text", "")
-    m = _TRACEPARENT_RE.search(query)
     root = _node(entry["Plan"])
 
     # real auto_explain puts duration in the log-line prefix, not the JSON;
@@ -53,7 +50,7 @@ def parse(entry: dict, log_time: float | None = None) -> ParsedPlan:
         query_text=query.strip(),
         duration_ms=duration,
         root=root,
-        traceparent=m.group(1) if m else None,
+        traceparent=extract_traceparent(query),
         query_id=entry.get("Query Identifier"),
         log_time=log_time,
     )

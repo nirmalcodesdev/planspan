@@ -19,23 +19,27 @@ from opentelemetry.trace import (
 )
 
 from parser import ParsedPlan, PlanNode
+from traceparent import parse_traceparent
 
 _NS_PER_MS = 1_000_000
 
 
-def _parent_context(traceparent: str | None):
-    if not traceparent:
+def parent_context_from_traceparent(traceparent: str | None):
+    """Build an OTel context whose current span is the (remote) traceparent span.
+
+    Used to hang emitted spans under a trace we only know by its id string —
+    the plan subtree under the app request, or a lock-wait span under the victim.
+    """
+    parsed = parse_traceparent(traceparent)
+    if not parsed:
         return None
-    try:
-        _, trace_id, span_id, flags = traceparent.split("-")
-        ctx = SpanContext(
-            trace_id=int(trace_id, 16),
-            span_id=int(span_id, 16),
-            is_remote=True,
-            trace_flags=TraceFlags(int(flags, 16)),
-        )
-    except (ValueError, AttributeError):
-        return None
+    trace_id, span_id, flags = parsed
+    ctx = SpanContext(
+        trace_id=trace_id,
+        span_id=span_id,
+        is_remote=True,
+        trace_flags=TraceFlags(flags),
+    )
     return set_span_in_context(NonRecordingSpan(ctx))
 
 
@@ -74,7 +78,7 @@ class PlanEmitter:
         the sidecar passes the log line's epoch-ns so spans backdate correctly.
         """
         start_ns = self._start_ns(plan, now_ns)
-        parent = _parent_context(plan.traceparent)
+        parent = parent_context_from_traceparent(plan.traceparent)
         count = self._emit_node(plan.root, start_ns, parent)
         return count
 
