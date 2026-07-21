@@ -81,6 +81,33 @@ to list every sequential scan on `orders` in the window, slowest first.
 Import `deploy/signoz/dashboards/query-plans.json` (Dashboards → Import JSON):
 slowest plan nodes, seq scans by relation, node time by type, row skew, buffers read.
 
+## What-if plans
+
+When a slow query does a Seq Scan with a filter, the sidecar asks `hypopg` what the
+plan *would* be if the matching index existed — `EXPLAIN` only, nothing is executed.
+If the planner would use it, PlanSpan emits the hypothetical plan as a **sibling span
+subtree under the same request**, marked `db.postgresql.plan.simulated=true`, with:
+
+- `whatif.speedup` — planner cost ratio (baseline / hypothetical)
+- `whatif.ddl` — `CREATE INDEX CONCURRENTLY ...`, copy-pasteable from the trace
+
+So one waterfall shows two universes: the plan you have and the plan you could have.
+Reproduce by dropping the index and hitting the endpoint:
+
+```bash
+psql "$CONN" -c "DROP INDEX ix_orders_email"
+curl "http://localhost:8000/orders?email=user4242@example.com"
+```
+
+The `/orders` trace gets a `[what-if] Index Scan orders` sibling with the speedup and
+DDL. Disable the runner with `WHATIF=off`.
+
+## Query billing
+
+`planspan/billing` turns plan facts into cost: `io_amplification` (bytes read per row
+returned — the "1.9 GB to return 12 rows" story) and `dollars_per_month` (CPU time ×
+observed call rate × a tunable vCPU price). Estimates, labeled as such.
+
 ## Lock forensics
 
 A background poller watches `pg_stat_activity` for sessions blocked on locks and
