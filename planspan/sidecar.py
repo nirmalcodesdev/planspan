@@ -1,5 +1,9 @@
-"""PlanSpan sidecar: tail auto_explain log -> plan spans -> SigNoz OTLP."""
+"""PlanSpan sidecar: tail auto_explain log -> plan spans -> SigNoz OTLP.
+
+Also runs the lock poller in a background thread.
+"""
 import os
+import threading
 import time
 
 from opentelemetry import trace
@@ -11,6 +15,8 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from emitter import PlanEmitter
 from logreader import iter_entries
 from parser import parse
+
+import lockpoller.runner as lock_runner
 
 
 def _setup_tracer():
@@ -53,6 +59,11 @@ def main():
     log_path = os.environ.get("PG_LOG_PATH", "/var/log/postgresql/postgresql-17-main.log")
     tracer = _setup_tracer()
     emitter = PlanEmitter(tracer)
+
+    if os.environ.get("LOCK_POLLER", "on") != "off":
+        t = threading.Thread(target=lock_runner.run, args=(tracer,), daemon=True)
+        t.start()
+
     print(f"planspan sidecar up. tailing {log_path}", flush=True)
 
     for item in iter_entries(follow(log_path)):
