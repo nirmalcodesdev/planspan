@@ -81,6 +81,27 @@ to list every sequential scan on `orders` in the window, slowest first.
 Import `deploy/signoz/dashboards/query-plans.json` (Dashboards → Import JSON):
 slowest plan nodes, seq scans by relation, node time by type, row skew, buffers read.
 
+## Lock forensics
+
+A background poller watches `pg_stat_activity` for sessions blocked on locks and
+calls `pg_blocking_pids()`. When a blocked request carries a traceparent, PlanSpan
+emits a `Lock wait` span into the victim's trace with `db.blocked_by.trace_id`
+pointing at the request that held the lock — click straight from a stuck request to
+the culprit.
+
+Reproduce it with the demo endpoints (blocker must hold the lock idle-in-transaction
+so its last statement — the one that took the lock — is what the poller sees):
+
+```bash
+RID=$(psql "$CONN" -tAc "SELECT id FROM orders ORDER BY id LIMIT 1")
+curl -X POST "http://localhost:8000/hold-lock?order_id=$RID&seconds=8" &
+sleep 1
+curl -X POST "http://localhost:8000/contend-lock?order_id=$RID"
+```
+
+The victim's trace gets a `Lock wait` span linking to the holder's trace. Tune the
+poll cadence with `LOCK_POLL_INTERVAL` (default 0.5s); disable with `LOCK_POLLER=off`.
+
 ## Span attributes
 
 Spans follow the OTel `db.*` semconv and extend it with a proposed
