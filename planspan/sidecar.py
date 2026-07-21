@@ -13,6 +13,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 from emitter import PlanEmitter
+from fingerprint import FlipTracker, fingerprint
 from logreader import iter_entries
 from parser import parse
 
@@ -66,6 +67,7 @@ def main():
         t.start()
 
     whatif = WhatIfRunner(tracer) if os.environ.get("WHATIF", "on") != "off" else None
+    flips = FlipTracker()
 
     print(f"planspan sidecar up. tailing {log_path}", flush=True)
 
@@ -73,13 +75,52 @@ def main():
         plan = parse(item.entry, log_time=item.log_time)
         plan.duration_ms = item.duration_ms or plan.duration_ms
         now_ns = time.time_ns()
-        n = emitter.emit(plan, now_ns=now_ns)
+
+        root_attrs = {"db.postgresql.plan.fingerprint": fingerprint(plan)}
+        if plan.query_id is not None:
+            root_attrs["db.postgresql.plan.query_id"] = str(plan.query_id)
+        last_good = flips.last_good_trace(plan.query_id)
+
+        flip = flips.observe(plan)
+        if flip is not None:
+            root_attrs["db.postgresql.plan.flipped"] = True
+            root_attrs["db.postgresql.plan.flip_diff"] = flip.diff
+            if flip.last_good_trace_id:
+                root_attrs["db.postgresql.plan.last_good_trace_id"] = flip.last_good_trace_id
+            _emit_flip_event(tracer, plan, flip, now_ns)
+            print(f"PLAN FLIP qid={flip.query_id}: {flip.diff}", flush=True)
+        elif last_good:
+            root_attrs["db.postgresql.plan.last_good_trace_id"] = last_good
+
+        n = emitter.emit(plan, now_ns=now_ns, root_attrs=root_attrs)
         tp = plan.traceparent or "no-parent"
         print(f"emitted {n} spans  dur={plan.duration_ms:.1f}ms  tp={tp}", flush=True)
 
         if whatif is not None:
             start_ns = _plan_start_ns(plan, now_ns)
             whatif.maybe_emit(plan, start_ns)
+
+
+def _emit_flip_event(tracer, plan, flip, now_ns):
+    """A short standalone span marking a plan regression — alertable in SigNoz
+    by filtering on db.postgresql.plan.flipped = true."""
+    from emitter import parent_context_from_traceparent
+
+    parent = parent_context_from_traceparent(plan.traceparent)
+    span = tracer.start_span(
+        name=f"Plan flip: {flip.diff}",
+        context=parent,
+        start_time=now_ns,
+        attributes={
+            "db.postgresql.plan.flipped": True,
+            "db.postgresql.plan.flip_diff": flip.diff,
+            "db.postgresql.plan.query_id": str(flip.query_id),
+            "db.postgresql.plan.old_fingerprint": flip.old_fingerprint,
+            "db.postgresql.plan.new_fingerprint": flip.new_fingerprint,
+            "db.postgresql.plan.last_good_trace_id": flip.last_good_trace_id or "",
+        },
+    )
+    span.end(end_time=now_ns + 1_000_000)
 
 
 def _plan_start_ns(plan, now_ns):

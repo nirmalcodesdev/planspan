@@ -71,15 +71,16 @@ class PlanEmitter:
     def __init__(self, tracer=None):
         self._tracer = tracer or trace.get_tracer("planspan")
 
-    def emit(self, plan: ParsedPlan, now_ns: int) -> int:
+    def emit(self, plan: ParsedPlan, now_ns: int, root_attrs: dict | None = None) -> int:
         """Emit the plan tree as spans. Returns number of spans emitted.
 
         now_ns is the wall clock used when the log has no timestamp; normally
         the sidecar passes the log line's epoch-ns so spans backdate correctly.
+        root_attrs are merged onto the root span only (fingerprint, last-good).
         """
         start_ns = self._start_ns(plan, now_ns)
         parent = parent_context_from_traceparent(plan.traceparent)
-        count = self._emit_node(plan.root, start_ns, parent)
+        count = self._emit_node(plan.root, start_ns, parent, root_attrs)
         return count
 
     def _start_ns(self, plan: ParsedPlan, now_ns: int) -> int:
@@ -89,13 +90,16 @@ class PlanEmitter:
             end_ns = now_ns
         return end_ns - int(plan.duration_ms * _NS_PER_MS)
 
-    def _emit_node(self, node: PlanNode, start_ns: int, parent_ctx) -> int:
+    def _emit_node(self, node: PlanNode, start_ns: int, parent_ctx, root_attrs=None) -> int:
         end_ns = start_ns + int(node.total_ms * _NS_PER_MS)
+        attrs = _node_attrs(node)
+        if root_attrs:
+            attrs.update(root_attrs)
         span = self._tracer.start_span(
             name=self._span_name(node),
             context=parent_ctx,
             start_time=start_ns,
-            attributes=_node_attrs(node),
+            attributes=attrs,
         )
         child_ctx = set_span_in_context(span)
         count = 1

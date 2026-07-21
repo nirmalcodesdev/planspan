@@ -1,0 +1,70 @@
+{
+  "alert": "PlanSpan - plan flip detected",
+  "alertType": "TRACES_BASED_ALERT",
+  "ruleType": "threshold_rule",
+  "condition": {
+    "compositeQuery": {
+      "queries": [
+        {
+          "type": "builder_query",
+          "spec": {
+            "name": "A",
+            "stepInterval": 0,
+            "signal": "traces",
+            "source": "",
+            "aggregations": [
+              {
+                "expression": "count()"
+              }
+            ],
+            "filter": {
+              "expression": "db.postgresql.plan.flipped = true"
+            },
+            "having": {
+              "expression": ""
+            }
+          }
+        }
+      ],
+      "panelType": "graph",
+      "queryType": "builder"
+    },
+    "selectedQueryName": "A",
+    "thresholds": {
+      "kind": "basic",
+      "spec": [
+        {
+          "name": "critical",
+          "target": 0,
+          "targetUnit": "",
+          "recoveryTarget": null,
+          "matchType": "at_least_once",
+          "op": "above",
+          "channels": [
+            "test-webhook"
+          ]
+        }
+      ]
+    }
+  },
+  "annotations": {
+    "description": "Plan shape changed. See flip_diff + last_good_trace_id.",
+    "summary": "PlanSpan - plan flip detected"
+  },
+  "disabled": false,
+  "version": "v5",
+  "evaluation": {
+    "kind": "rolling",
+    "spec": {
+      "evalWindow": "5m0s",
+      "frequency": "1m"
+    }
+  },
+  "schemaVersion": "v2alpha1",
+  "notificationSettings": {
+    "renotify": {
+      "enabled": false,
+      "interval": "30m"
+    }
+  }
+}
