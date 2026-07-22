@@ -125,12 +125,17 @@ so the fast (indexed) baseline plan is also logged.
 
 ## AI diagnosis (SigNoz MCP)
 
-Claude connects to SigNoz via the official MCP server and reads the plan spans
-directly — see `mcp/README.md` for setup. Ask "why is /orders slow?" and it cites
-the what-if sibling as verification. `mcp/diagnose.py` is the automated,
-zero-LLM-in-the-path fallback: it pulls the biggest recent what-if win through MCP
-and writes a ready-to-review `CREATE INDEX CONCURRENTLY` migration file — a
-verified fix, not a narrated one.
+Two ways in, same data, same fix — see `mcp/README.md` for setup:
+
+- **A human types a question.** Claude connects to SigNoz via the official MCP
+  server and reads the plan spans directly. Ask "why is /orders slow?" and it cites
+  the what-if sibling as verification, distinguishing a real missing index from a
+  planner just picking the wrong plan.
+- **An alert fires.** `mcp/webhook.py` listens for SigNoz's alertmanager POST and
+  runs the same diagnosis automatically — no LLM in the data path required.
+  `mcp/diagnose.py` pulls the biggest recent what-if win through MCP and writes a
+  ready-to-review `CREATE INDEX CONCURRENTLY` migration file: a verified fix, not
+  a narrated one, sitting there before anyone asks.
 
 ## Lock forensics
 

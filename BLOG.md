@@ -163,8 +163,19 @@ naive "add an index" bot would get wrong.
 For the zero-risk path — no LLM anywhere near the data plane — `diagnose.py`
 queries the same MCP server, pulls the biggest recent what-if win, and
 deterministically writes `migrations/add_index_orders.sql` from the verified
-`whatif.ddl`. Wire it to the plan-flip alert's webhook and the migration is
-sitting in a PR before the on-call engineer's phone buzzes.
+`whatif.ddl`. I wired it to the plan-flip alert's own webhook: a tiny stdlib
+listener that SigNoz's alertmanager POSTs to when the rule fires. Dropped the
+index, waited for the alert to fire for real, and the log showed it happen with
+nobody touching a keyboard:
+
+```
+webhook: alert firing, running diagnosis
+wrote migration: migrations/add_index_orders.sql
+```
+
+The migration is sitting in the working tree before the on-call engineer's phone
+buzzes — Q&A-on-demand *and* alert-triggered auto-diagnosis, both real, both
+tested against a live SigNoz instance.
 
 ## What it costs
 
