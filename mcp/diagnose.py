@@ -80,22 +80,22 @@ def narrate(relation, ddl, speedup, trace_id):
     return msg.content[0].text
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--minutes", type=int, default=60)
-    ap.add_argument("--out", default="migrations")
-    args = ap.parse_args()
+def run_diagnosis(minutes: int = 60, out: str = "migrations"):
+    """Callable core, shared by the CLI and the alert webhook listener.
 
+    Returns a dict describing what was written, or None if there was nothing
+    to diagnose (no MCP data, or MCP unreachable).
+    """
     mcp = MCP()
     try:
-        facts = find_worst_whatif(mcp, args.minutes)
+        facts = find_worst_whatif(mcp, minutes)
     except MCPError as e:
         print(f"MCP query failed: {e}", file=sys.stderr)
-        return 1
+        return None
 
     if not facts:
         print("no what-if candidates in window — nothing to diagnose", file=sys.stderr)
-        return 1
+        return None
 
     best = facts[0]
     ddl = best["whatif.ddl"]
@@ -103,14 +103,24 @@ def main():
     speedup = float(best.get("whatif.speedup", 0))
     trace_id = best.get("trace_id", "")
 
-    os.makedirs(args.out, exist_ok=True)
-    fname = os.path.join(args.out, f"add_index_{relation}.sql")
+    os.makedirs(out, exist_ok=True)
+    fname = os.path.join(out, f"add_index_{relation}.sql")
     with open(fname, "w") as f:
         f.write(build_migration(ddl, relation, speedup, trace_id))
 
-    print(narrate(relation, ddl, speedup, trace_id))
+    text = narrate(relation, ddl, speedup, trace_id)
+    print(text)
     print(f"\nwrote migration: {fname}")
-    return 0
+    return {"file": fname, "narrative": text, "relation": relation,
+            "speedup": speedup, "trace_id": trace_id}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--minutes", type=int, default=60)
+    ap.add_argument("--out", default="migrations")
+    args = ap.parse_args()
+    return 0 if run_diagnosis(args.minutes, args.out) else 1
 
 
 if __name__ == "__main__":
