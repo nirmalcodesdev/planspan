@@ -20,6 +20,7 @@ env/
 logs/
 data/
 pgdata/
+mcp/migrations/
 
 # os / editor
 .DS_Store

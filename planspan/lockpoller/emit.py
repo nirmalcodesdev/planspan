@@ -8,6 +8,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Link, SpanContext, TraceFlags
 
 from emitter import parent_context_from_traceparent
+from scrub import scrub
 from traceparent import parse_traceparent
 
 from .poll import LockEpisode
@@ -56,7 +57,7 @@ class LockEmitter:
         if blocker_trace_hex:
             attrs["db.blocked_by.trace_id"] = blocker_trace_hex
         if block.blocker_query:
-            attrs["db.blocked_by.query"] = block.blocker_query[:500]
+            attrs["db.blocked_by.query"] = scrub(block.blocker_query[:500])
 
         span = self._tracer.start_span(
             name=f"Lock wait ({block.wait_event})",
