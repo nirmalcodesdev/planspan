@@ -118,6 +118,15 @@ before. Import the alerts in `deploy/signoz/alerts/` (plan flip, high-IO seq sca
 get paged before users notice. The flip demo needs `auto_explain.log_min_duration = 0`
 so the fast (indexed) baseline plan is also logged.
 
+## AI diagnosis (SigNoz MCP)
+
+Claude connects to SigNoz via the official MCP server and reads the plan spans
+directly — see `mcp/README.md` for setup. Ask "why is /orders slow?" and it cites
+the what-if sibling as verification. `mcp/diagnose.py` is the automated,
+zero-LLM-in-the-path fallback: it pulls the biggest recent what-if win through MCP
+and writes a ready-to-review `CREATE INDEX CONCURRENTLY` migration file — a
+verified fix, not a narrated one.
+
 ## Lock forensics
 
 A background poller watches `pg_stat_activity` for sessions blocked on locks and
@@ -169,6 +178,8 @@ deploy/
   docker-compose.yml     demoapp + sidecar (host network)
   postgres/              auto_explain config + setup.sh
   signoz/dashboards/     importable dashboard JSON
+  signoz/alerts/         importable alert JSON
+mcp/                     SigNoz MCP client + auto-diagnosis script
 tests/            parser / emitter / logreader (+ real VPS plan fixture)
 ```
 
