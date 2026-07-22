@@ -9,6 +9,11 @@ rendered in SigNoz.
 
 Built for the Agents of SigNoz hackathon (Track 3).
 
+**Five acts:** [See](#see-the-plans) the plan as a trace · [Explain](#lock-forensics)
+who blocked you · [Diagnose](#plan-fingerprinting) what changed · [Fix](#what-if-plans)
+it with a verified migration · [Automate](#ai-diagnosis-signoz-mcp) with an agent that
+reads the trace.
+
 ## How it fits together
 
 Three moving parts, deliberately separate:
@@ -147,6 +152,24 @@ curl -X POST "http://localhost:8000/contend-lock?order_id=$RID"
 
 The victim's trace gets a `Lock wait` span linking to the holder's trace. Tune the
 poll cadence with `LOCK_POLL_INTERVAL` (default 0.5s); disable with `LOCK_POLLER=off`.
+
+## Honest engineering
+
+- **Overhead is real and governed, not hidden.** Measured on the VPS (25-run median,
+  parallel aggregate over 10M rows): `auto_explain` with `log_analyze`+`log_buffers`+
+  `log_timing` on adds **~35%** to that query's latency — the per-node instrumentation
+  genuinely costs something. Governed two ways: `log_min_duration=200ms` means only
+  slow queries pay it, and `auto_explain.sample_rate` can dial down further under load.
+  The sidecar itself is cheap at idle (~0.3% CPU, ~31MB RSS).
+- **The waterfall is a cost-map, not a timeline** — see `emitter/emit.py`. Postgres's
+  iterator model interleaves node execution; EXPLAIN gives inclusive durations, not
+  start offsets. Parent-start = child-start, duration = `actual_time × loops`. Widest
+  bar = most expensive node still holds; it's a stated layout decision, not a bug.
+- **PII:** filter clauses and captured lock-holder queries can carry real literal
+  values (emails, ids). Set `SCRUB_LITERALS=true` to redact quoted literals before
+  they reach span attributes.
+- **What-if is EXPLAIN-only.** Nothing the sidecar suggests is ever executed against
+  the database — hypopg indexes are in-memory and reset after each check.
 
 ## Span attributes
 
