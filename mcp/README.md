@@ -55,5 +55,26 @@ already verified against the plan, not a paragraph. Set `ANTHROPIC_API_KEY` to
 also get a short Claude-written diagnosis citing the trace; without it, a
 template narrative is used instead.
 
-Wire this to the plan-flip alert's webhook (`deploy/signoz/alerts/plan-flip.json`)
-for on-call auto-diagnosis: the migration lands before anyone asks.
+## Alert-triggered auto-diagnosis
+
+`diagnose.py` also runs itself when an alert fires — the on-call-assistant half of
+Act 5. `webhook.py` is a tiny stdlib listener that SigNoz's alertmanager POSTs to;
+on a firing alert it runs the same diagnosis in the background, so the migration
+lands before anyone asks.
+
+```bash
+python webhook.py          # listens on 0.0.0.0:8010/alert
+```
+
+Wire it to SigNoz once:
+
+1. **Notification channel** → point a webhook channel at the listener. SigNoz runs
+   in its own bridge network, so use the bridge gateway, not `localhost`:
+   `http://<bridge-gateway>:8010/alert` (find it with
+   `docker network inspect signoz-network -f '{{(index .IPAM.Config 0).Gateway}}'`).
+2. **Firewall** → allow the port from that subnet only:
+   `sudo ufw allow from <subnet> to any port 8010 proto tcp`.
+3. **Attach** the channel to the plan-flip alert (its `channels` list).
+
+Now drop an index, wait for the flip alert to fire, and the migration appears with
+no human in the loop. Env: `WEBHOOK_HOST`/`WEBHOOK_PORT`/`WEBHOOK_PATH`.
