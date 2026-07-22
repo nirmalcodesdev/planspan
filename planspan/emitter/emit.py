@@ -19,6 +19,7 @@ from opentelemetry.trace import (
 )
 
 from parser import ParsedPlan, PlanNode
+from scrub import scrub
 from traceparent import parse_traceparent
 
 _NS_PER_MS = 1_000_000
@@ -61,7 +62,7 @@ def _node_attrs(node: PlanNode) -> dict:
     if node.index_name:
         attrs["db.postgresql.plan.index_name"] = node.index_name
     if node.filter_clause:
-        attrs["db.postgresql.plan.filter"] = node.filter_clause
+        attrs["db.postgresql.plan.filter"] = scrub(node.filter_clause)
     if node.join_type:
         attrs["db.postgresql.plan.join_type"] = node.join_type
     return attrs
