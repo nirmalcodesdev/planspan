@@ -28,8 +28,22 @@ Three moving parts, deliberately separate:
 
 ## Setup (VPS)
 
-Assumes SigNoz is already up (Foundry) and you've completed the signup page at
-`http://<vps-ip>:8080/signup` — until you do, SigNoz silently drops spans.
+### 1. SigNoz via Foundry
+
+```bash
+curl -fsSL https://signoz.io/foundry.sh | bash
+foundryctl cast -f deploy/casting.yaml
+```
+
+`deploy/casting.yaml` / `deploy/casting.yaml.lock` are the exact Foundry config this
+was built and demoed against (self-hosted, compose flavor). The lock file's internal
+metastore password is redacted — it's a container-only credential Foundry generates
+per install, not something you need to reuse.
+
+Complete the signup page at `http://<vps-ip>:8080/signup` before anything else —
+until you do, SigNoz silently drops spans (no error, just nothing shows up).
+
+### 2. PlanSpan
 
 ```bash
 cp .env.example .env         # edit PG_PASSWORD etc.
