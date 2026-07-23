@@ -27,3 +27,7 @@ mcp/migrations/
 Thumbs.db
 .idea/
 .vscode/
+
+# local planning docs (not for GitHub)
+idea.md
+ROADMAP.md
