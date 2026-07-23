@@ -35,6 +35,13 @@
       "w": 6,
       "x": 6,
       "y": 12
+    },
+    {
+      "h": 6,
+      "i": "6",
+      "w": 12,
+      "x": 0,
+      "y": 18
     }
   ],
   "tags": [
@@ -264,6 +271,71 @@
         "queryType": "builder"
       },
       "title": "Buffers read (disk pressure)"
+    },
+    {
+      "description": "Estimated monthly cost per query, from observed call rate x plan cost. Labeled estimate.",
+      "id": "6",
+      "panelTypes": "list",
+      "query": {
+        "builder": {
+          "queryData": [
+            {
+              "aggregateAttribute": {
+                "key": "",
+                "type": ""
+              },
+              "aggregateOperator": "noop",
+              "dataSource": "traces",
+              "disabled": false,
+              "expression": "A",
+              "filter": {
+                "expression": "billing.dollars_per_month EXISTS"
+              },
+              "groupBy": [],
+              "limit": 10,
+              "orderBy": [
+                {
+                  "columnName": "billing.dollars_per_month",
+                  "order": "desc"
+                }
+              ],
+              "queryName": "A",
+              "stepInterval": 60
+            }
+          ],
+          "queryFormulas": []
+        },
+        "queryType": "builder"
+      },
+      "selectedLogFields": [],
+      "selectedTracesFields": [
+        {
+          "dataType": "string",
+          "key": "billing.relation",
+          "type": "tag"
+        },
+        {
+          "dataType": "string",
+          "key": "db.postgresql.plan.query_id",
+          "type": "tag"
+        },
+        {
+          "dataType": "float64",
+          "key": "billing.dollars_per_month",
+          "type": "tag"
+        },
+        {
+          "dataType": "float64",
+          "key": "billing.calls_per_hour",
+          "type": "tag"
+        },
+        {
+          "dataType": "float64",
+          "key": "billing.io_amplification_bytes_per_row",
+          "type": "tag"
+        }
+      ],
+      "title": "Top expensive queries ($/month)"
     }
   ]
 }
