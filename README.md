@@ -102,7 +102,8 @@ to list every sequential scan on `orders` in the window, slowest first.
 ### Dashboard
 
 Import `deploy/signoz/dashboards/query-plans.json` (Dashboards → Import JSON):
-slowest plan nodes, seq scans by relation, node time by type, row skew, buffers read.
+slowest plan nodes, seq scans by relation, node time by type, row skew, buffers read,
+and top expensive queries ($/month).
 
 ## What-if plans
 
@@ -127,19 +128,22 @@ DDL. Disable the runner with `WHATIF=off`.
 
 ## Query billing
 
-The sidecar prices every plan it captures. `planspan/billing` queries
-`pg_stat_statements` for the query's real call rate (scoped per-queryid via its own
-`stats_since`, no extra grants needed), then emits on the plan root span:
+When a captured plan has a `query_id` and `pg_stat_statements` already has a row for
+it, the sidecar prices that plan. `planspan/billing` reads the query's real call rate
+(scoped per-queryid via its own `stats_since`, no extra grants needed), then emits on
+the plan root span:
 
 - `billing.io_amplification_bytes_per_row` — total buffers read across the whole plan
   tree, per row actually returned (the "1.9 GB to return 12 rows" story)
 - `billing.dollars_per_month` — CPU time × observed call rate × a tunable vCPU price
   (`DOLLARS_PER_CPU_HOUR`, default $0.12) — a labeled estimate, not a bill
+- `billing.calls_per_hour` — observed rate used for the dollar math
 - `billing.relation` — the costliest table-touching node's relation, so the number
   means something without opening the trace
 
-Dashboard panel: **Top expensive queries ($/month)**, sorted worst-first. Disable
-with `BILLING=off`.
+If there's no `query_id` yet or stats aren't ready, billing attrs are simply omitted
+(the plan spans still emit). Dashboard panel: **Top expensive queries ($/month)**,
+sorted worst-first. Disable with `BILLING=off`.
 
 ## Plan fingerprinting
 
@@ -234,6 +238,7 @@ planspan/         the sidecar
   fingerprint/    plan-shape hashing
   billing/        IO + $ math, priced from pg_stat_statements call rate
 deploy/
+  casting.yaml[.lock]    Foundry install config for SigNoz
   docker-compose.yml     demoapp + sidecar (host network)
   postgres/              auto_explain config + setup.sh
   signoz/dashboards/     importable dashboard JSON
