@@ -12,6 +12,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
+from billing import BillingRunner
 from emitter import PlanEmitter
 from fingerprint import FlipTracker, fingerprint
 from logreader import iter_entries
@@ -67,6 +68,11 @@ def main():
         t.start()
 
     whatif = WhatIfRunner(tracer) if os.environ.get("WHATIF", "on") != "off" else None
+    billing = (
+        BillingRunner(dollars_per_cpu_hour=float(os.environ.get("DOLLARS_PER_CPU_HOUR", "0.12")))
+        if os.environ.get("BILLING", "on") != "off"
+        else None
+    )
     flips = FlipTracker()
 
     print(f"planspan sidecar up. tailing {log_path}", flush=True)
@@ -91,6 +97,9 @@ def main():
             print(f"PLAN FLIP qid={flip.query_id}: {flip.diff}", flush=True)
         elif last_good:
             root_attrs["db.postgresql.plan.last_good_trace_id"] = last_good
+
+        if billing is not None:
+            root_attrs.update(billing.bill_attrs(plan))
 
         n = emitter.emit(plan, now_ns=now_ns, root_attrs=root_attrs)
         tp = plan.traceparent or "no-parent"

@@ -43,7 +43,9 @@ cd deploy && docker compose up --build -d
 Seed the shop (10M orders, server-side, idempotent):
 
 ```bash
-docker compose exec demoapp python seed.py       # or ORDERS=2000000 for a smaller set
+docker compose exec demoapp python seed.py
+# or a smaller set:
+docker compose exec -e ORDERS=2000000 demoapp python seed.py
 ```
 
 Endpoints:
@@ -62,8 +64,10 @@ curl "http://localhost:8000/search"
 ```
 
 Find the `shop-api` `/search` request and expand the waterfall. Under the HTTP span
-you'll see the plan subtree — `Aggregate` → `Gather Merge` → `Sort` → `Seq Scan orders`
-— each a real span carrying rows, buffers, loops, and estimate-vs-actual skew.
+you'll see the plan subtree — `Aggregate` → `Gather Merge` → `Sort` → `Aggregate`
+(partial) → `Seq Scan orders` — each a real span carrying rows, buffers, loops, and
+estimate-vs-actual skew. Exact shape depends on the plan the planner picks for your
+data (real capture: `tests/golden/search_real_vps.json`).
 
 The sidecar logs one line per captured plan:
 
@@ -109,9 +113,19 @@ DDL. Disable the runner with `WHATIF=off`.
 
 ## Query billing
 
-`planspan/billing` turns plan facts into cost: `io_amplification` (bytes read per row
-returned — the "1.9 GB to return 12 rows" story) and `dollars_per_month` (CPU time ×
-observed call rate × a tunable vCPU price). Estimates, labeled as such.
+The sidecar prices every plan it captures. `planspan/billing` queries
+`pg_stat_statements` for the query's real call rate (scoped per-queryid via its own
+`stats_since`, no extra grants needed), then emits on the plan root span:
+
+- `billing.io_amplification_bytes_per_row` — total buffers read across the whole plan
+  tree, per row actually returned (the "1.9 GB to return 12 rows" story)
+- `billing.dollars_per_month` — CPU time × observed call rate × a tunable vCPU price
+  (`DOLLARS_PER_CPU_HOUR`, default $0.12) — a labeled estimate, not a bill
+- `billing.relation` — the costliest table-touching node's relation, so the number
+  means something without opening the trace
+
+Dashboard panel: **Top expensive queries ($/month)**, sorted worst-first. Disable
+with `BILLING=off`.
 
 ## Plan fingerprinting
 
@@ -195,20 +209,24 @@ Spans follow the OTel `db.*` semconv and extend it with a proposed
 ```
 demoapp/          FastAPI shop (traffic source)
 planspan/         the sidecar
+  sidecar.py      entrypoint: wires tail loop + lock poller + what-if runner
   parser/         auto_explain JSON -> span-tree IR
   emitter/        IR -> OTel spans
   logreader.py    tail + multiline plan assembly
+  traceparent.py  shared traceparent parse/extract helpers
+  scrub.py        optional literal redaction (SCRUB_LITERALS)
   lockpoller/     lock forensics
   whatif/         hypopg what-if plans
   fingerprint/    plan-shape hashing
-  billing/        IO + $ math
+  billing/        IO + $ math, priced from pg_stat_statements call rate
 deploy/
   docker-compose.yml     demoapp + sidecar (host network)
   postgres/              auto_explain config + setup.sh
   signoz/dashboards/     importable dashboard JSON
   signoz/alerts/         importable alert JSON
-mcp/                     SigNoz MCP client + auto-diagnosis script
-tests/            parser / emitter / logreader (+ real VPS plan fixture)
+mcp/                     SigNoz MCP client, on-demand + alert-triggered diagnosis
+tests/            parser, emitter, logreader, lockpoller, whatif, fingerprint,
+                  scrub (+ real VPS plan fixture)
 ```
 
 Run the tests with `pytest` from the repo root (`pip install -r tests/requirements.txt`).

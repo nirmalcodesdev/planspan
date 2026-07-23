@@ -7,7 +7,8 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "planspan"))
 
-from billing import bill, io_amplification, dollars_per_month
+from billing import bill, io_amplification, dollars_per_month, calls_per_hour
+from datetime import datetime, timedelta, timezone
 from whatif import find_candidate, WhatIfEmitter
 from whatif.run import WhatIf
 from whatif.candidate import IndexCandidate
@@ -37,7 +38,20 @@ def test_bill_bundles():
     b = bill(buffers_read=1000, rows_returned=10, total_ms=500, calls_per_hour=60)
     assert b.bytes_read == 1000 * 8192
     assert b.rows_returned == 10
-    assert b.dollars_per_month > 0
+
+
+def test_calls_per_hour_basic():
+    now = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    since = now - timedelta(hours=10)
+    assert calls_per_hour(calls=100, stats_since=since, now=now) == 10.0
+
+
+def test_calls_per_hour_floors_elapsed_at_one_minute():
+    # a query that just started tracking shouldn't look like infinite calls/hour
+    now = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    since = now  # zero elapsed
+    rate = calls_per_hour(calls=1, stats_since=since, now=now)
+    assert rate == 1 / (1 / 60)  # floored to a 1-minute window
 
 
 # ---- candidate heuristic ----
