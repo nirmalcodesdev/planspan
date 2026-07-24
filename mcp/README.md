@@ -37,7 +37,7 @@ Or in `claude_desktop_config.json`:
 
 Then ask: *"why is /orders slow?"* — Claude searches traces, reads the plan spans
 (`db.postgresql.plan.*`), and can cite the what-if sibling (`whatif.ddl`,
-`whatif.speedup`) as its verification.
+`whatif.est_cost_reduction`) as a planner estimate to validate.
 
 ## Automated diagnosis
 

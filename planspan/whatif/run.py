@@ -1,8 +1,9 @@
 """Run a what-if: how would this query plan if the candidate index existed?
 
-Uses hypopg to create a hypothetical (zero-cost, in-memory) index, then EXPLAIN
-(no ANALYZE — nothing is executed) to see the plan the planner would pick. The
-speedup is a planner cost ratio, not a measured time — labeled as such.
+Uses hypopg to create a hypothetical (in-memory, never built) index, then
+EXPLAIN (no ANALYZE — the query is not executed) to see the plan the planner
+would pick. The ratio is a PLANNER COST estimate, not a measured wall-clock
+speedup — named and labeled as such everywhere it surfaces.
 """
 import json
 from dataclasses import dataclass
@@ -19,7 +20,9 @@ class WhatIf:
     used_hypo_index: bool
 
     @property
-    def speedup(self) -> float:
+    def est_cost_reduction(self) -> float:
+        """baseline planner cost / hypothetical planner cost. An estimate the
+        planner makes, NOT a measured latency improvement."""
         return self.baseline_cost / max(self.hypo_cost, 0.01)
 
 

@@ -23,7 +23,7 @@ from signoz_client import MCP, MCPError, WHATIF_FIELDS
 
 
 def find_worst_whatif(mcp: MCP, minutes: int):
-    """Most recent what-if spans, richest speedup first."""
+    """Most recent what-if spans, richest estimated cost reduction first."""
     res = mcp.raw_traces(
         filter_expr="db.postgresql.plan.simulated = true",
         select_fields=WHATIF_FIELDS,
@@ -32,35 +32,39 @@ def find_worst_whatif(mcp: MCP, minutes: int):
     )
     rows = res["data"]["data"]["results"][0].get("rows") or []
     facts = [r["data"] for r in rows if r["data"].get("whatif.ddl")]
-    facts.sort(key=lambda d: float(d.get("whatif.speedup", 0)), reverse=True)
+    facts.sort(key=lambda d: float(d.get("whatif.est_cost_reduction", 0)), reverse=True)
     return facts
 
 
-def build_migration(ddl: str, relation: str, speedup: float, trace_id: str) -> str:
-    return f"""-- PlanSpan auto-diagnosis migration
+def build_migration(ddl: str, relation: str, cost_reduction: float, trace_id: str) -> str:
+    return f"""-- PlanSpan auto-diagnosis — GENERATED FOR REVIEW
 -- relation: {relation}
--- projected speedup: {speedup:.0f}x (hypopg what-if, EXPLAIN-only, not measured)
--- verified against trace: {trace_id}
--- review before applying.
+-- estimated planner cost reduction: {cost_reduction:.0f}x (hypopg what-if,
+--   planner-only EXPLAIN — NOT a measured latency improvement)
+-- derived from trace: {trace_id}
+--
+-- Before applying: validate index size, write/maintenance cost, workload fit,
+-- and your migration policy. CREATE INDEX CONCURRENTLY has its own operational
+-- caveats (cannot run in a txn block, can leave an invalid index on failure).
 
 {ddl}
 """
 
 
-def narrate(relation, ddl, speedup, trace_id):
+def narrate(relation, ddl, cost_reduction, trace_id):
     """Optional Claude prose. Falls back to a template if no key / SDK."""
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         return (
             f"The query on `{relation}` runs a sequential scan. PlanSpan's what-if "
-            f"(trace {trace_id}) shows a matching index would cut planner cost "
-            f"~{speedup:.0f}x. Apply the migration below — it is the exact DDL "
-            f"PlanSpan already verified against the plan."
+            f"(trace {trace_id}) estimates a matching index would cut the planner's "
+            f"cost ~{cost_reduction:.0f}x (planner estimate, not measured latency). "
+            f"The proposed DDL is below — review before applying."
         )
     try:
         import anthropic
     except ImportError:
-        return f"(pip install anthropic for narrative) — apply the {relation} index below."
+        return f"(pip install anthropic for narrative) — review the {relation} index proposal below."
 
     client = anthropic.Anthropic(api_key=key)
     msg = client.messages.create(
@@ -71,9 +75,11 @@ def narrate(relation, ddl, speedup, trace_id):
             "content": (
                 f"You are an on-call DBA. PlanSpan detected a sequential scan on "
                 f"`{relation}` (trace {trace_id}). Its hypopg what-if (EXPLAIN-only) "
-                f"projects a {speedup:.0f}x planner-cost reduction from this index:\n{ddl}\n\n"
+                f"estimates a {cost_reduction:.0f}x planner-cost reduction (planner "
+                f"estimate, not measured latency) from this index:\n{ddl}\n\n"
                 f"Write a 3-4 sentence diagnosis for the incident channel. Cite the "
-                f"what-if as verification. Do not invent numbers beyond these."
+                f"what-if as a planner estimate to validate, not a proven fix. Do not "
+                f"invent numbers beyond these."
             ),
         }],
     )
@@ -100,19 +106,19 @@ def run_diagnosis(minutes: int = 60, out: str = "migrations"):
     best = facts[0]
     ddl = best["whatif.ddl"]
     relation = best.get("db.postgresql.plan.relation", "unknown")
-    speedup = float(best.get("whatif.speedup", 0))
+    cost_reduction = float(best.get("whatif.est_cost_reduction", 0))
     trace_id = best.get("trace_id", "")
 
     os.makedirs(out, exist_ok=True)
     fname = os.path.join(out, f"add_index_{relation}.sql")
     with open(fname, "w") as f:
-        f.write(build_migration(ddl, relation, speedup, trace_id))
+        f.write(build_migration(ddl, relation, cost_reduction, trace_id))
 
-    text = narrate(relation, ddl, speedup, trace_id)
+    text = narrate(relation, ddl, cost_reduction, trace_id)
     print(text)
     print(f"\nwrote migration: {fname}")
     return {"file": fname, "narrative": text, "relation": relation,
-            "speedup": speedup, "trace_id": trace_id}
+            "est_cost_reduction": cost_reduction, "trace_id": trace_id}
 
 
 def main():
