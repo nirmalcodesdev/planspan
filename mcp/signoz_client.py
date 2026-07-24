@@ -79,7 +79,7 @@ class MCP:
 
 WHATIF_FIELDS = [
     {"name": "whatif.ddl", "fieldDataType": "string", "signal": "traces", "fieldContext": "tag"},
-    {"name": "whatif.speedup", "fieldDataType": "number", "signal": "traces", "fieldContext": "tag"},
+    {"name": "whatif.est_cost_reduction", "fieldDataType": "number", "signal": "traces", "fieldContext": "tag"},
     {"name": "db.postgresql.plan.relation", "fieldDataType": "string", "signal": "traces", "fieldContext": "tag"},
     {"name": "trace_id", "fieldDataType": "string", "signal": "traces", "fieldContext": "span"},
     {"name": "name", "fieldDataType": "string", "signal": "traces", "fieldContext": "span"},
