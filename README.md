@@ -45,6 +45,18 @@ Built for the Agents of SigNoz hackathon (Track 3).
 - Permission to run the Postgres setup script with `sudo`
 - A VPS or host where ports required by the demo and SigNoz are reachable
 
+PlanSpan is built around PostgreSQL's `auto_explain` (the one hard requirement) and
+`pg_stat_activity`, with `hypopg` and `pg_stat_statements` where the provider allows
+them. Availability differs across managed providers, engine versions, and admin
+policy — run the compatibility check first to see what your Postgres permits:
+
+```bash
+PGPASSWORD=... ./deploy/postgres/compat_check.sh "host=... dbname=... user=..."
+```
+
+It's read-only, and reports each capability as ok / degraded / blocking. Every
+feature except plan capture degrades gracefully if its extension is missing.
+
 
 ## Problem
 
@@ -119,23 +131,25 @@ and top expensive queries ($/month).
 ### What-if plans
 
 When a slow query does a Seq Scan with a filter, the sidecar asks `hypopg` what the
-plan *would* be if the matching index existed — `EXPLAIN` only, nothing is executed.
+plan *would* be if the matching index existed. The candidate index is never built and
+the query is never run — PlanSpan runs a **planner-only `EXPLAIN (FORMAT JSON)`**.
 If the planner would use it, PlanSpan emits the hypothetical plan as a **sibling span
 subtree under the same request**, marked `db.postgresql.plan.simulated=true`, with:
 
-- `whatif.speedup` — planner cost ratio (baseline / hypothetical)
-- `whatif.ddl` — `CREATE INDEX CONCURRENTLY ...`, copy-pasteable from the trace
+- `whatif.est_cost_reduction` — ratio of baseline to hypothetical **planner cost**.
+  The planner's own estimate, **not** a measured wall-clock speedup.
+- `whatif.ddl` — a proposed `CREATE INDEX CONCURRENTLY ...` for review
 
-So one waterfall shows two universes: the plan you have and the plan you could have.
-Reproduce by dropping the index and hitting the endpoint:
+So one waterfall shows two universes: the plan you have and the plan the planner
+estimates you could have. Reproduce by dropping the index and hitting the endpoint:
 
 ```bash
 psql "$CONN" -c "DROP INDEX ix_orders_email"
 curl "http://localhost:8000/orders?email=user4242@example.com"
 ```
 
-The `/orders` trace gets a `[what-if] Index Scan orders` sibling with the speedup and
-DDL. Disable the runner with `WHATIF=off`.
+The `/orders` trace gets a `[what-if] Index Scan orders` sibling with the estimated
+cost reduction and the proposed DDL. Disable the runner with `WHATIF=off`.
 
 ### Query billing
 
@@ -297,8 +311,8 @@ All project decisions, implementation, integration work, and final verification 
 
 ### Span attributes
 
-Spans follow the OTel `db.*` semconv and extend it with a proposed
-`db.postgresql.plan.*` namespace:
+Spans use OTel's `db.*` conventions where they apply, plus a **PlanSpan-specific
+custom namespace** `db.postgresql.plan.*` for the plan-node detail :
 
 | attribute | meaning |
 |---|---|
