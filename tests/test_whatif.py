@@ -125,7 +125,7 @@ def test_whatif_emits_simulated_sibling():
     assert n == 1
     span = exporter.get_finished_spans()[0]
     assert span.attributes["db.postgresql.plan.simulated"] is True
-    assert span.attributes["whatif.speedup"] == round(442.0 / 8.5, 1)
+    assert span.attributes["whatif.est_cost_reduction"] == round(442.0 / 8.5, 1)
     assert "CREATE INDEX CONCURRENTLY" in span.attributes["whatif.ddl"]
     # parented into the request's trace
     assert span.context.trace_id == int("abcdef00000000000000000000000000", 16)

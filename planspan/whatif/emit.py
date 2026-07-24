@@ -51,7 +51,7 @@ class WhatIfEmitter:
         if node.get("Index Name"):
             attrs["db.postgresql.plan.index_name"] = node["Index Name"]
         if is_root:
-            attrs["whatif.speedup"] = round(whatif.speedup, 1)
+            attrs["whatif.est_cost_reduction"] = round(whatif.est_cost_reduction, 1)
             attrs["whatif.ddl"] = whatif.candidate.ddl
             attrs["whatif.baseline_cost"] = whatif.baseline_cost
             attrs["whatif.hypo_cost"] = whatif.hypo_cost

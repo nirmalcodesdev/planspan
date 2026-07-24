@@ -52,7 +52,7 @@ class WhatIfRunner:
         if n:
             print(
                 f"what-if: {candidate.relation}({','.join(candidate.columns)}) "
-                f"speedup={whatif.speedup:.1f}x",
+                f"est_cost_reduction={whatif.est_cost_reduction:.1f}x (planner estimate)",
                 flush=True,
             )
         return n
