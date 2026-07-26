@@ -67,6 +67,7 @@ application trace stops at the database boundary.
 
 ## Solution / architecture
 
+```
 FastAPI demo shop ──(SQL comment: traceparent + service.name/version)──▶ Postgres 17
    │  OTLP app traces                                                      │ jsonlog: auto_explain plans,
    │                                                                       │ deadlocks, autovacuum, DDL
@@ -84,6 +85,7 @@ FastAPI demo shop ──(SQL comment: traceparent + service.name/version)──�
  │ +deploywatch     │                     │ diagnosis + diff artifact│
  │ +fingerprint     │                     └──────────────────────────┘
  └──────────────────┘
+```
 
 Three moving parts, deliberately separate:
 
