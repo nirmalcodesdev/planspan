@@ -87,7 +87,7 @@ FastAPI demo shop ──(traceparent SQL comments)──▶  Postgres 17
 
 Three moving parts, deliberately separate:
 
-- **SigNoz** — self-hosted via Foundry, runs as its own docker stack. We just target its
+- **SigNoz** — self-hosted via Foundry, runs as its own docker stack. I just target its
   OTLP endpoint (`localhost:4317`).
 - **Postgres 17** — native systemd cluster (not a container). `auto_explain` logs slow
   query plans as JSON.
@@ -320,9 +320,9 @@ A successful `/search` request should produce:
 
 ## AI disclosure
 
-I used Claude during development for testing support, bug fixing, and code quality improvements.
+I used Claude as a development assistant for implementation support and documentation.
 
-All project decisions, implementation, integration work, and final verification were done by us. We reviewed and validated the code and changes before including them in the project.
+All project decisions, architecture, testing, and final verification were done by me. I reviewed, validated, and approved all code and changes before incorporating them into the project.
 
 
 ## Reference
