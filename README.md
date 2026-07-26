@@ -67,6 +67,24 @@ application trace stops at the database boundary.
 
 ## Solution / architecture
 
+FastAPI demo shop ──(SQL comment: traceparent + service.name/version)──▶ Postgres 17
+   │  OTLP app traces                                                      │ jsonlog: auto_explain plans,
+   │                                                                       │ deadlocks, autovacuum, DDL
+   ▼                                                                       ▼
+ ┌───────────────────────────────  SigNoz  ─────────────────────────────────────┐
+ │  traces · metrics · logs · dashboards · alerts · MCP                        │
+ └───────▲──────────────────▲──────────────────▲───────────────▲───────────────┘
+         │ OTLP (plan +      │ OTLP (raw logs,  │ alert webhook  │ typed questions
+         │ what-if spans)    │ pg_stat metrics) │ (proactive)    │ (interactive)
+ ┌───────┴──────────┐ ┌──────┴──────────┐ ┌─────┴────────────────┴──┐
+ │ planspan sidecar │ │ OTel Collector  │ │ responder                │
+ │ tail→parse→enrich│ │ filelog receiver│ │ webhook + chat entry     │
+ │ +lockpoller      │ │ postgres recvr  │ │ points → same Claude     │
+ │ +whatif runner   │ └─────────────────┘ │ agent via SigNoz MCP →   │
+ │ +deploywatch     │                     │ diagnosis + diff artifact│
+ │ +fingerprint     │                     └──────────────────────────┘
+ └──────────────────┘
+
 Three moving parts, deliberately separate:
 
 - **SigNoz** — self-hosted via Foundry, runs as its own docker stack. We just target its
