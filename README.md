@@ -68,23 +68,21 @@ application trace stops at the database boundary.
 ## Solution / architecture
 
 ```
-FastAPI demo shop ──(SQL comment: traceparent + service.name/version)──▶ Postgres 17
-   │  OTLP app traces                                                      │ jsonlog: auto_explain plans,
-   │                                                                       │ deadlocks, autovacuum, DDL
-   ▼                                                                       ▼
- ┌───────────────────────────────  SigNoz  ─────────────────────────────────────┐
- │  traces · metrics · logs · dashboards · alerts · MCP                        │
- └───────▲──────────────────▲──────────────────▲───────────────▲───────────────┘
-         │ OTLP (plan +      │ OTLP (raw logs,  │ alert webhook  │ typed questions
-         │ what-if spans)    │ pg_stat metrics) │ (proactive)    │ (interactive)
- ┌───────┴──────────┐ ┌──────┴──────────┐ ┌─────┴────────────────┴──┐
- │ planspan sidecar │ │ OTel Collector  │ │ responder                │
- │ tail→parse→enrich│ │ filelog receiver│ │ webhook + chat entry     │
- │ +lockpoller      │ │ postgres recvr  │ │ points → same Claude     │
- │ +whatif runner   │ └─────────────────┘ │ agent via SigNoz MCP →   │
- │ +deploywatch     │                     │ diagnosis + diff artifact│
- │ +fingerprint     │                     └──────────────────────────┘
- └──────────────────┘
+FastAPI demo shop ──(traceparent SQL comments)──▶  Postgres 17
+   │  OTLP app traces                                 │ jsonlog: auto_explain plans,
+   │                                                  │ deadlocks, autovacuum, DDL
+   ▼                                                  ▼
+ ┌─────────────────────────  SigNoz  ─────────────────────────────┐
+ │  traces · metrics · logs · dashboards · alerts · MCP           │
+ └───────▲──────────────────────▲─────────────────────▲───────────┘
+         │ OTLP (plan spans,    │ OTLP (raw logs,     │ queries
+         │ what-if universes)   │ pg_stat metrics)    │
+ ┌───────┴────────────┐  ┌──────┴───────────┐  ┌──────┴──────────┐
+ │ planspan sidecar   │  │ OTel Collector    │  │ Claude via MCP  │
+ │ tail→parse→enrich  │  │ filelog receiver  │  │ "why is checkout│
+ │ +lock poller       │  │ postgres receiver │  │  slow?"         │
+ │ +what-if runner    │  └──────────────────┘   └─────────────────┘
+ └────────────────────┘
 ```
 
 Three moving parts, deliberately separate:
